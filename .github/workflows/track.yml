@@ -1,0 +1,42 @@
+name: track
+
+on:
+  schedule:
+    - cron: "23 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  track:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: ./track.sh
+      - name: Open a pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet versions.json; then
+            exit 0
+          fi
+          versions=$(jq -r '[.[].version] | join(" ")' versions.json)
+          branch="track/${versions// /-}"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git commit -m "Build Mattermost ${versions// /, }" versions.json
+          git push origin "$branch"
+          gh pr create --head "$branch" --title "Build Mattermost ${versions// /, }" \
+            --body "New upstream releases found by the track workflow."
+          # Pushes and pull requests made with GITHUB_TOKEN start no workflows,
+          # so start the build and test run on the branch explicitly.
+          gh workflow run build.yml --ref "$branch"

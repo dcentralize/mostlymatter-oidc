@@ -1,0 +1,111 @@
+diff --git a/server/channels/app/oauthproviders/openid/openid.go b/server/channels/app/oauthproviders/openid/openid.go
+new file mode 100644
+index 0000000000..257ca25069
+--- /dev/null
++++ b/server/channels/app/oauthproviders/openid/openid.go
+@@ -0,0 +1,80 @@
++// Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
++// See LICENSE.txt for license information.
++
++package oauthopenid
++
++import (
++	"encoding/json"
++	"errors"
++	"io"
++	"strings"
++
++	"github.com/mattermost/mattermost/server/public/model"
++	"github.com/mattermost/mattermost/server/public/shared/mlog"
++	"github.com/mattermost/mattermost/server/public/shared/request"
++	"github.com/mattermost/mattermost/server/v8/einterfaces"
++)
++
++// OpenIDProvider logs users in with the OpenIdSettings endpoints. Core
++// fetches the UserAPIEndpoint (the OIDC userinfo endpoint) and passes its
++// response to GetUserFromJSON.
++type OpenIDProvider struct {
++}
++
++type OpenIDUser struct {
++	Sub               string `json:"sub"`
++	Email             string `json:"email"`
++	EmailVerified     bool   `json:"email_verified"`
++	PreferredUsername string `json:"preferred_username"`
++	GivenName         string `json:"given_name"`
++	FamilyName        string `json:"family_name"`
++}
++
++func init() {
++	einterfaces.RegisterOAuthProvider(model.ServiceOpenid, &OpenIDProvider{})
++}
++
++func userFromJSON(logger mlog.LoggerIFace, data io.Reader) (*model.User, error) {
++	var ou OpenIDUser
++	if err := json.NewDecoder(data).Decode(&ou); err != nil {
++		return nil, err
++	}
++	if ou.Sub == "" {
++		return nil, errors.New("user sub can't be empty")
++	}
++	if ou.Email == "" {
++		return nil, errors.New("user e-mail should not be empty")
++	}
++	// Core marks the e-mail of an OAuth user as verified, so accept only
++	// addresses the identity provider has verified.
++	if !ou.EmailVerified {
++		return nil, errors.New("user e-mail is not verified")
++	}
++
++	return &model.User{
++		Username:    model.CleanUsername(logger, strings.Split(ou.PreferredUsername, "@")[0]),
++		FirstName:   ou.GivenName,
++		LastName:    ou.FamilyName,
++		Email:       strings.ToLower(ou.Email),
++		AuthData:    model.NewPointer(ou.Sub),
++		AuthService: model.ServiceOpenid,
++	}, nil
++}
++
++func (p *OpenIDProvider) GetSSOSettings(_ request.CTX, config *model.Config, _ string) (*model.SSOSettings, error) {
++	return &config.OpenIdSettings, nil
++}
++
++// GetUserFromIdToken returns no user: the identity comes from the userinfo
++// endpoint, which core calls with the access token.
++func (p *OpenIDProvider) GetUserFromIdToken(_ request.CTX, _ string) (*model.User, error) {
++	return nil, nil
++}
++
++// IsSameUser decides whether core may link an existing account with the same
++// e-mail address to this login: only an account of this provider with the
++// same subject.
++func (p *OpenIDProvider) IsSameUser(_ request.CTX, dbUser, oauthUser *model.User) bool {
++	return dbUser.AuthService == oauthUser.AuthService &&
++		model.SafeDereference(dbUser.AuthData) == model.SafeDereference(oauthUser.AuthData)
++}
+diff --git a/server/cmd/mostlymatter/main.go b/server/cmd/mostlymatter/main.go
+index 1783e812f3..38db81ff67 100644
+--- a/server/cmd/mostlymatter/main.go
++++ b/server/cmd/mostlymatter/main.go
+@@ -12,4 +12,5 @@ import (
+ 	// Plugins
+ 	_ "github.com/mattermost/mattermost/server/v8/channels/app/oauthproviders/gitlab"
++	_ "github.com/mattermost/mattermost/server/v8/channels/app/oauthproviders/openid"
+ 
+ 	// Enterprise Imports
+diff --git a/server/config/client.go b/server/config/client.go
+index f06d9e91f1..3d660b41c8 100644
+--- a/server/config/client.go
++++ b/server/config/client.go
+@@ -369,7 +369,7 @@ func GenerateLimitedClientConfig(c *model.Config, telemetryID string, license *m
+ 	props["EnableSignUpWithGoogle"] = "false"
+ 	props["EnableSignUpWithOffice365"] = "false"
+-	props["EnableSignUpWithOpenId"] = "false"
+-	props["OpenIdButtonText"] = ""
+-	props["OpenIdButtonColor"] = ""
++	props["EnableSignUpWithOpenId"] = strconv.FormatBool(*c.OpenIdSettings.Enable)
++	props["OpenIdButtonText"] = *c.OpenIdSettings.ButtonText
++	props["OpenIdButtonColor"] = *c.OpenIdSettings.ButtonColor
+ 	props["CWSURL"] = ""
+ 	props["EnableCustomBrand"] = strconv.FormatBool(*c.TeamSettings.EnableCustomBrand)

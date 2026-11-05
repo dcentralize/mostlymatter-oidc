@@ -1,0 +1,53 @@
+{
+  "realm": "test",
+  "enabled": true,
+  "sslRequired": "none",
+  "clients": [
+    {
+      "clientId": "mattermost",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "mm-test-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": [
+        "http://mm:8065/signup/openid/complete",
+        "http://mm:8065/login/openid/complete"
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "alice",
+      "enabled": true,
+      "email": "alice@example.com",
+      "emailVerified": true,
+      "firstName": "Alice",
+      "lastName": "Anders",
+      "credentials": [{"type": "password", "value": "alice-pw", "temporary": false}]
+    },
+    {
+      "username": "bob",
+      "enabled": true,
+      "email": "bob@example.com",
+      "emailVerified": true,
+      "firstName": "Bob",
+      "lastName": "Bakker",
+      "credentials": [{"type": "password", "value": "bob-pw", "temporary": false}]
+    },
+    {
+      "username": "carol",
+      "enabled": true,
+      "email": "carol@example.com",
+      "emailVerified": false,
+      "firstName": "Carol",
+      "lastName": "Clark",
+      "credentials": [{"type": "password", "value": "carol-pw", "temporary": false}]
+    },
+    {
+      "username": "svc",
+      "enabled": false
+    }
+  ]
+}

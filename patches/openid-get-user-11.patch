@@ -1,0 +1,21 @@
+diff --git a/server/channels/app/oauthproviders/openid/get_user.go b/server/channels/app/oauthproviders/openid/get_user.go
+new file mode 100644
+index 0000000000..74e46a475a
+--- /dev/null
++++ b/server/channels/app/oauthproviders/openid/get_user.go
+@@ -0,0 +1,15 @@
++// Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
++// See LICENSE.txt for license information.
++
++package oauthopenid
++
++import (
++	"io"
++
++	"github.com/mattermost/mattermost/server/public/model"
++	"github.com/mattermost/mattermost/server/public/shared/request"
++)
++
++func (p *OpenIDProvider) GetUserFromJSON(rctx request.CTX, data io.Reader, _ *model.User, _ *model.SSOSettings) (*model.User, error) {
++	return userFromJSON(rctx.Logger(), data)
++}
