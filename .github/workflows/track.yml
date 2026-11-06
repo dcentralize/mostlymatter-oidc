@@ -1,0 +1,48 @@
+name: track
+
+on:
+  schedule:
+    - cron: "23 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  track:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: ./track.sh
+      - name: Open a pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet versions.json; then
+            exit 0
+          fi
+          versions=$(jq -r '[.[].version] | join(" ")' versions.json)
+          branch="track/${versions// /-}"
+          title="Build Mattermost ${versions// /, }"
+          # Each step runs only when its result is missing, so the next run
+          # finishes one that stopped halfway.
+          if ! git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git switch -c "$branch"
+            git commit -m "$title" versions.json
+            git push origin "$branch"
+          fi
+          if [ -z "$(gh pr list --head "$branch" --state all --json number --jq '.[]')" ]; then
+            gh pr create --head "$branch" --title "$title" \
+              --body "New upstream releases found by the track workflow."
+          fi
+          # Pushes and pull requests made with GITHUB_TOKEN start no workflows,
+          # so start the build and test run on the branch explicitly.
+          if [ -z "$(gh run list --workflow build.yml --branch "$branch" --json databaseId --jq '.[]')" ]; then
+            gh workflow run build.yml --ref "$branch"
+          fi
